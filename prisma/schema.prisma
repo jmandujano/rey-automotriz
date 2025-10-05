@@ -1,0 +1,605 @@
+// Prisma schema for Sistema Rey Automotriz
+//
+// This schema mirrors the SQL definitions contained in
+// `rey_automotriz_claude_db.sql`. It intentionally preserves
+// naming conventions from the original database by mapping
+// Prisma model names and fields to their underlying table and
+// column names using the @@map and @map attributes. This allows
+// Prisma to generate a type‑safe client for interacting with
+// the existing PostgreSQL schema without modifying the
+// underlying database structure.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Role {
+  id_rol        Int      @id @default(autoincrement()) @map("id_rol")
+  nombre_rol    String   @unique @map("nombre_rol")
+  descripcion   String?  @db.Text @map("descripcion")
+  fecha_creacion DateTime @default(now()) @map("fecha_creacion")
+
+  usuarios      Usuario[]
+
+  @@map("roles")
+}
+
+model Usuario {
+  id_usuario                Int       @id @default(autoincrement()) @map("id_usuario")
+  id_rol                    Int       @map("id_rol")
+  correo_electronico        String    @unique @map("correo_electronico")
+  contrasena_hash           String    @map("contrasena_hash")
+  nombre_completo           String    @map("nombre_completo")
+  dni                       String?   @db.VarChar(8) @map("dni")
+  fecha_nacimiento          DateTime? @map("fecha_nacimiento")
+  telefono_principal        String?   @map("telefono_principal")
+  telefono_secundario       String?   @map("telefono_secundario")
+  estado                    String    @default("activo") @map("estado")
+  requiere_cambio_contrasena Boolean   @default(false) @map("requiere_cambio_contrasena")
+  fecha_creacion            DateTime  @default(now()) @map("fecha_creacion")
+  fecha_ultima_actualizacion DateTime @default(now()) @map("fecha_ultima_actualizacion")
+  fecha_ultimo_acceso       DateTime? @map("fecha_ultimo_acceso")
+
+  rol     Role     @relation(fields: [id_rol], references: [id_rol])
+  clientesAsignados Cliente[] @relation("VendedorClientes")
+  clienteVisitas    VisitaCliente[]
+  // relación de ajustes de stock omitida porque no existe un modelo explícito
+
+  pedidos_vendedor  Pedido[]   @relation("PedidoVendedor")
+  pedidos_creacion  Pedido[]   @relation("PedidoCreador")
+  pedidos_actualizacion Pedido[] @relation("PedidoActualizador")
+  pedidoComentarios PedidoComentario[]
+  // Remove the pedidoPagos relation because the pedido_pagos table does not
+  // contain a user reference. Payments are associated with orders, not users.
+  // See the SQL definition of pedido_pagos in the provided schema for details.
+  // pedidoPagos      PedidoPago[]
+  pedidoHistorial  PedidoHistorialEstado[]
+  proformas        Proforma[]  @relation("ProformaCreador")
+  proformasVendedor Proforma[] @relation("ProformaVendedor")
+  devoluciones_vendedor Devolucion[] @relation("DevolucionVendedor")
+  devoluciones_creacion Devolucion[] @relation("DevolucionCreador")
+  devoluciones_actualizacion Devolucion[] @relation("DevolucionActualizador")
+  devolucionHistorial DevolucionHistorialEstado[]
+  movimientosFinancieros MovimientoFinanciero[] @relation("MovimientoRegistrador")
+  comisiones            ComisionVendedor[]
+  notificacionUsuarios  NotificacionUsuario[]
+
+  @@map("usuarios")
+}
+
+model Cliente {
+  id_cliente              Int       @id @default(autoincrement()) @map("id_cliente")
+  id_vendedor_asignado    Int       @map("id_vendedor_asignado")
+  ruc                     String?   @db.VarChar(11) @unique @map("ruc")
+  razon_social            String    @map("razon_social")
+  nombre_representante    String?   @map("nombre_representante")
+  cumpleanos_representante DateTime? @map("cumpleanos_representante")
+  correo_electronico      String    @unique @map("correo_electronico")
+  telefono_principal      String?   @map("telefono_principal")
+  telefono_secundario     String?   @map("telefono_secundario")
+  dni_representante       String?   @db.VarChar(8) @map("dni_representante")
+  tipo_cliente            String?   @map("tipo_cliente")
+  departamento            String?   @map("departamento")
+  provincia               String?   @map("provincia")
+  distrito                String?   @map("distrito")
+  direccion               String?   @db.Text @map("direccion")
+  estado                  String    @default("activo") @map("estado")
+  fecha_creacion          DateTime  @default(now()) @map("fecha_creacion")
+  fecha_ultima_actualizacion DateTime @default(now()) @map("fecha_ultima_actualizacion")
+
+  vendedor    Usuario   @relation("VendedorClientes", fields: [id_vendedor_asignado], references: [id_usuario])
+  adjuntos    ClienteAdjunto[]
+  facturasReferenciales ClienteFacturaReferencial[]
+  visitas     VisitaCliente[]
+  pedidos     Pedido[]
+  devoluciones Devolucion[]
+  proformas   Proforma[]
+
+  @@map("clientes")
+}
+
+model ClienteAdjunto {
+  id_adjunto    Int      @id @default(autoincrement()) @map("id_adjunto")
+  id_cliente    Int      @map("id_cliente")
+  tipo_adjunto  String   @map("tipo_adjunto")
+  nombre_archivo String   @map("nombre_archivo")
+  ruta_archivo   String   @db.Text @map("ruta_archivo")
+  fecha_subida   DateTime @default(now()) @map("fecha_subida")
+
+  cliente  Cliente @relation(fields: [id_cliente], references: [id_cliente])
+
+  @@map("cliente_adjuntos")
+}
+
+model ClienteFacturaReferencial {
+  id_factura_referencial Int      @id @default(autoincrement()) @map("id_factura_referencial")
+  id_cliente            Int      @map("id_cliente")
+  numero_factura        String   @map("numero_factura")
+  fecha_registro        DateTime @default(now()) @map("fecha_registro")
+
+  cliente Cliente @relation(fields: [id_cliente], references: [id_cliente])
+
+  @@map("cliente_facturas_referenciales")
+}
+
+model VisitaCliente {
+  id_visita        Int      @id @default(autoincrement()) @map("id_visita")
+  id_vendedor      Int      @map("id_vendedor")
+  id_cliente       Int      @map("id_cliente")
+  fecha_visita     DateTime @map("fecha_visita")
+  hora_visita      DateTime @map("hora_visita")
+  contador_visitas Int      @default(1) @map("contador_visitas")
+  fecha_registro   DateTime @default(now()) @map("fecha_registro")
+
+  vendedor Usuario @relation(fields: [id_vendedor], references: [id_usuario])
+  cliente  Cliente @relation(fields: [id_cliente], references: [id_cliente])
+
+  @@unique([id_vendedor, id_cliente, fecha_visita])
+  @@map("visitas_clientes")
+}
+
+model CategoriaProducto {
+  id_categoria        Int      @id @default(autoincrement()) @map("id_categoria")
+  nombre_categoria    String   @unique @map("nombre_categoria")
+  id_categoria_padre  Int?     @map("id_categoria_padre")
+  porcentaje_alerta_stock Float   @default(10.0) @map("porcentaje_alerta_stock")
+  descripcion         String?  @db.Text @map("descripcion")
+  fecha_creacion      DateTime @default(now()) @map("fecha_creacion")
+
+  categoriaPadre      CategoriaProducto? @relation("CategoriaPadre", fields: [id_categoria_padre], references: [id_categoria])
+  subcategorias       CategoriaProducto[] @relation("CategoriaPadre")
+  productos           Producto[]
+
+  @@map("categorias_producto")
+}
+
+model Proveedor {
+  id_proveedor    Int      @id @default(autoincrement()) @map("id_proveedor")
+  nombre_proveedor String   @map("nombre_proveedor")
+  tipo_origen      String?  @map("tipo_origen")
+  ruc              String?  @db.VarChar(11) @map("ruc")
+  contacto         String?  @map("contacto")
+  telefono         String?  @map("telefono")
+  email            String?  @map("email")
+  direccion        String?  @db.Text @map("direccion")
+  estado           String   @default("activo") @map("estado")
+  fecha_creacion   DateTime @default(now()) @map("fecha_creacion")
+
+  importaciones    ProductoImportacion[]
+
+  @@map("proveedores")
+}
+
+model Almacen {
+  id_almacen     Int      @id @default(autoincrement()) @map("id_almacen")
+  nombre_almacen String   @unique @map("nombre_almacen")
+  ubicacion      String?  @db.Text @map("ubicacion")
+  estado         String   @default("activo") @map("estado")
+  fecha_creacion DateTime @default(now()) @map("fecha_creacion")
+
+  importaciones  ProductoImportacion[]
+
+  @@map("almacenes")
+}
+
+model Producto {
+  id_producto             Int      @id @default(autoincrement()) @map("id_producto")
+  codigo_producto         String   @unique @map("codigo_producto")
+  descripcion             String   @db.Text @map("descripcion")
+  id_categoria            Int      @map("id_categoria")
+  estado                 String   @default("activo") @map("estado")
+  fecha_creacion          DateTime @default(now()) @map("fecha_creacion")
+  fecha_ultima_actualizacion DateTime @default(now()) @map("fecha_ultima_actualizacion")
+
+  categoria CategoriaProducto @relation(fields: [id_categoria], references: [id_categoria])
+  importaciones ProductoImportacion[]
+  porcentajesVenta ProductoPorcentajeVenta[]
+  imagenes ProductoImagen[]
+  // Not modelling stock adjustments explicitly
+  pedidoDetalles PedidoDetalle[]
+  proformaDetalles ProformaDetalle[]
+  devolucionDetalles DevolucionDetalle[]
+
+  @@map("productos")
+}
+
+model ProductoImportacion {
+  id_importacion    Int      @id @default(autoincrement()) @map("id_importacion")
+  id_producto       Int      @map("id_producto")
+  id_proveedor      Int      @map("id_proveedor")
+  fecha_importacion DateTime @map("fecha_importacion")
+  precio_compra     Decimal  @map("precio_compra") @db.Decimal(12,2)
+  stock             Int      @default(0) @map("stock")
+  id_almacen        Int?     @map("id_almacen")
+  estado_importacion String   @default("activa") @map("estado_importacion")
+  fecha_creacion    DateTime @default(now()) @map("fecha_creacion")
+
+  producto  Producto  @relation(fields: [id_producto], references: [id_producto])
+  proveedor Proveedor @relation(fields: [id_proveedor], references: [id_proveedor])
+  almacen   Almacen?  @relation(fields: [id_almacen], references: [id_almacen])
+
+  @@unique([id_producto, estado_importacion])
+  @@map("producto_importaciones")
+}
+
+model ProductoPorcentajeVenta {
+  id_porcentaje_venta Int      @id @default(autoincrement()) @map("id_porcentaje_venta")
+  id_producto        Int      @map("id_producto")
+  porcentaje_margen  Float    @map("porcentaje_margen")
+  precio_venta       Decimal  @map("precio_venta") @db.Decimal(12,2)
+  porcentaje_comision Float    @map("porcentaje_comision")
+  fecha_vigencia_inicio DateTime @default(now()) @map("fecha_vigencia_inicio")
+  fecha_vigencia_fin  DateTime? @map("fecha_vigencia_fin")
+  estado             String   @default("activo") @map("estado")
+  fecha_creacion     DateTime @default(now()) @map("fecha_creacion")
+
+  producto Producto @relation(fields: [id_producto], references: [id_producto])
+
+  @@map("producto_porcentajes_venta")
+}
+
+model ProductoImagen {
+  id_imagen        Int      @id @default(autoincrement()) @map("id_imagen")
+  id_producto      Int      @map("id_producto")
+  nombre_archivo   String   @map("nombre_archivo")
+  ruta_archivo     String   @db.Text @map("ruta_archivo")
+  orden_visualizacion Int   @default(1) @map("orden_visualizacion")
+  fecha_subida     DateTime @default(now()) @map("fecha_subida")
+
+  producto Producto @relation(fields: [id_producto], references: [id_producto])
+
+  @@map("producto_imagenes")
+}
+
+model Pedido {
+  id_pedido               Int      @id @default(autoincrement()) @map("id_pedido")
+  id_cliente              Int      @map("id_cliente")
+  id_vendedor             Int      @map("id_vendedor")
+  tipo_pago               String   @map("tipo_pago")
+  tipo_comprobante        String   @map("tipo_comprobante")
+  numero_comprobante      String?  @map("numero_comprobante")
+  subtotal                Decimal  @map("subtotal") @db.Decimal(12,2)
+  igv                     Decimal  @map("igv") @db.Decimal(12,2)
+  descuento_total         Decimal  @default(0.00) @map("descuento_total") @db.Decimal(12,2)
+  total                   Decimal  @map("total") @db.Decimal(12,2)
+  observaciones           String?  @db.Text @map("observaciones")
+  estado_actual           String   @default("registrado") @map("estado_actual")
+  fecha_creacion          DateTime @default(now()) @map("fecha_creacion")
+  fecha_ultima_actualizacion DateTime @default(now()) @map("fecha_ultima_actualizacion")
+  id_usuario_creacion     Int      @map("id_usuario_creacion")
+  id_usuario_ultima_actualizacion Int? @map("id_usuario_ultima_actualizacion")
+
+  cliente   Cliente  @relation(fields: [id_cliente], references: [id_cliente])
+  vendedor  Usuario  @relation("PedidoVendedor", fields: [id_vendedor], references: [id_usuario])
+  creador   Usuario  @relation("PedidoCreador", fields: [id_usuario_creacion], references: [id_usuario])
+  actualizador Usuario? @relation("PedidoActualizador", fields: [id_usuario_ultima_actualizacion], references: [id_usuario])
+  detalles  PedidoDetalle[]
+  historial PedidoHistorialEstado[]
+  pagos    PedidoPago[]
+  comentarios PedidoComentario[]
+  facturacion ElectronicaFactura[]
+  devoluciones Devolucion[]
+  movimientoPedidos MovimientoPedido[]
+
+  // When a proforma is converted to an order, it references the order via
+  // Proforma.pedidoConvertido. We define the opposite side of that relation
+  // here so Prisma can navigate from an order to all proformas that were
+  // converted into it. Without this explicit field, Prisma would report
+  // a missing opposite relation error.
+  proformasConvertidas Proforma[] @relation("ProformaConvertido")
+
+  @@map("pedidos")
+}
+
+model PedidoDetalle {
+  id_detalle      Int      @id @default(autoincrement()) @map("id_detalle")
+  id_pedido       Int      @map("id_pedido")
+  id_producto     Int      @map("id_producto")
+  cantidad        Int      @map("cantidad")
+  precio_unitario Decimal  @map("precio_unitario") @db.Decimal(12,2)
+  descuento_porcentaje Float @default(0.0) @map("descuento_porcentaje")
+  descuento_monto Decimal  @default(0.00) @map("descuento_monto") @db.Decimal(12,2)
+  subtotal        Decimal  @map("subtotal") @db.Decimal(12,2)
+  porcentaje_comision Float @default(0.0) @map("porcentaje_comision")
+  monto_comision  Decimal  @default(0.00) @map("monto_comision") @db.Decimal(12,2)
+
+  pedido   Pedido  @relation(fields: [id_pedido], references: [id_pedido])
+  producto Producto @relation(fields: [id_producto], references: [id_producto])
+
+  @@map("pedido_detalle")
+}
+
+model PedidoHistorialEstado {
+  id_historial  Int      @id @default(autoincrement()) @map("id_historial")
+  id_pedido     Int      @map("id_pedido")
+  estado_anterior String? @map("estado_anterior")
+  estado_nuevo  String   @map("estado_nuevo")
+  id_usuario    Int      @map("id_usuario")
+  fecha_cambio  DateTime @default(now()) @map("fecha_cambio")
+  comentario    String?  @db.Text @map("comentario")
+
+  pedido  Pedido  @relation(fields: [id_pedido], references: [id_pedido])
+  usuario Usuario @relation(fields: [id_usuario], references: [id_usuario])
+
+  @@map("pedido_historial_estados")
+}
+
+model PedidoPago {
+  id_pago             Int      @id @default(autoincrement()) @map("id_pago")
+  id_pedido           Int      @map("id_pedido")
+  numero_cuota        Int      @map("numero_cuota")
+  fecha_pago_programada DateTime @map("fecha_pago_programada")
+  monto_cuota         Decimal  @map("monto_cuota") @db.Decimal(12,2)
+  monto_pagado        Decimal  @default(0.00) @map("monto_pagado") @db.Decimal(12,2)
+  saldo_pendiente     Decimal  @map("saldo_pendiente") @db.Decimal(12,2)
+  estado_pago         String   @default("pendiente") @map("estado_pago")
+  fecha_pago_real     DateTime? @map("fecha_pago_real")
+  metodo_pago         String?  @map("metodo_pago")
+  motivo_retraso      String?  @db.Text @map("motivo_retraso")
+  fecha_creacion      DateTime @default(now()) @map("fecha_creacion")
+
+  pedido  Pedido  @relation(fields: [id_pedido], references: [id_pedido])
+
+  @@unique([id_pedido, numero_cuota])
+  @@map("pedido_pagos")
+}
+
+model PedidoComentario {
+  id_comentario   Int      @id @default(autoincrement()) @map("id_comentario")
+  id_pedido       Int      @map("id_pedido")
+  id_usuario      Int      @map("id_usuario")
+  comentario      String   @db.Text @map("comentario")
+  fecha_comentario DateTime @default(now()) @map("fecha_comentario")
+
+  pedido  Pedido  @relation(fields: [id_pedido], references: [id_pedido])
+  usuario Usuario @relation(fields: [id_usuario], references: [id_usuario])
+
+  @@map("pedido_comentarios")
+}
+
+model Proforma {
+  id_proforma        Int      @id @default(autoincrement()) @map("id_proforma")
+  id_cliente         Int      @map("id_cliente")
+  id_vendedor        Int      @map("id_vendedor")
+  numero_proforma    String?  @unique @map("numero_proforma")
+  subtotal           Decimal  @map("subtotal") @db.Decimal(12,2)
+  igv                Decimal  @map("igv") @db.Decimal(12,2)
+  total              Decimal  @map("total") @db.Decimal(12,2)
+  observaciones      String?  @db.Text @map("observaciones")
+  ruta_pdf           String?  @db.Text @map("ruta_pdf")
+  convertida_pedido  Boolean  @default(false) @map("convertida_pedido")
+  id_pedido_convertido Int?   @map("id_pedido_convertido")
+  fecha_creacion     DateTime @default(now()) @map("fecha_creacion")
+  id_usuario_creacion Int      @map("id_usuario_creacion")
+
+  cliente   Cliente @relation(fields: [id_cliente], references: [id_cliente])
+  vendedor  Usuario @relation("ProformaVendedor", fields: [id_vendedor], references: [id_usuario])
+  creador   Usuario @relation("ProformaCreador", fields: [id_usuario_creacion], references: [id_usuario])
+  // A proforma may be converted into a formal order. When it is, the
+  // id_pedido_convertido column stores the target order's ID. We assign a
+  // relation name here and define the opposite field in the Pedido model
+  // (proformasConvertidas) to satisfy Prisma's requirement for explicit
+  // opposite relations.
+  pedidoConvertido Pedido? @relation("ProformaConvertido", fields: [id_pedido_convertido], references: [id_pedido])
+  detalles  ProformaDetalle[]
+
+  @@map("proformas")
+}
+
+model ProformaDetalle {
+  id_detalle   Int     @id @default(autoincrement()) @map("id_detalle")
+  id_proforma  Int     @map("id_proforma")
+  id_producto  Int     @map("id_producto")
+  cantidad     Int     @map("cantidad")
+  precio_unitario Decimal @map("precio_unitario") @db.Decimal(12,2)
+  subtotal     Decimal @map("subtotal") @db.Decimal(12,2)
+
+  proforma Proforma @relation(fields: [id_proforma], references: [id_proforma])
+  producto Producto @relation(fields: [id_producto], references: [id_producto])
+
+  @@map("proforma_detalle")
+}
+
+model ElectronicaFactura {
+  id_facturacion     Int      @id @default(autoincrement()) @map("id_facturacion")
+  id_pedido          Int      @map("id_pedido")
+  tipo_documento     String   @map("tipo_documento")
+  numero_documento   String   @unique @map("numero_documento")
+  xml_ubl            String   @db.Text @map("xml_ubl")
+  cdr_sunat          String?  @db.Text @map("cdr_sunat")
+  estado_sunat       String?  @map("estado_sunat")
+  fecha_emision      DateTime @default(now()) @map("fecha_emision")
+  fecha_respuesta_sunat DateTime? @map("fecha_respuesta_sunat")
+
+  pedido Pedido @relation(fields: [id_pedido], references: [id_pedido])
+
+  @@map("facturacion_electronica")
+}
+
+model Devolucion {
+  id_devolucion          Int      @id @default(autoincrement()) @map("id_devolucion")
+  id_pedido              Int      @map("id_pedido")
+  id_cliente             Int      @map("id_cliente")
+  id_vendedor            Int      @map("id_vendedor")
+  motivo                 String   @db.Text @map("motivo")
+  estado_actual          String   @default("registrada") @map("estado_actual")
+  motivo_rechazo         String?  @db.Text @map("motivo_rechazo")
+  reembolsada            Boolean  @default(false) @map("reembolsada")
+  fecha_creacion         DateTime @default(now()) @map("fecha_creacion")
+  fecha_ultima_actualizacion DateTime @default(now()) @map("fecha_ultima_actualizacion")
+  id_usuario_creacion    Int      @map("id_usuario_creacion")
+  id_usuario_ultima_actualizacion Int? @map("id_usuario_ultima_actualizacion")
+
+  pedido    Pedido  @relation(fields: [id_pedido], references: [id_pedido])
+  cliente   Cliente @relation(fields: [id_cliente], references: [id_cliente])
+  vendedor  Usuario @relation("DevolucionVendedor", fields: [id_vendedor], references: [id_usuario])
+  creador   Usuario @relation("DevolucionCreador", fields: [id_usuario_creacion], references: [id_usuario])
+  actualizador Usuario? @relation("DevolucionActualizador", fields: [id_usuario_ultima_actualizacion], references: [id_usuario])
+  detalles  DevolucionDetalle[]
+  evidencias DevolucionEvidencia[]
+  historial DevolucionHistorialEstado[]
+
+  @@map("devoluciones")
+}
+
+model DevolucionDetalle {
+  id_detalle        Int     @id @default(autoincrement()) @map("id_detalle")
+  id_devolucion     Int     @map("id_devolucion")
+  id_producto       Int     @map("id_producto")
+  cantidad_devuelta Int     @map("cantidad_devuelta")
+  motivo_producto   String? @db.Text @map("motivo_producto")
+  estado_producto   String  @default("normal") @map("estado_producto")
+
+  devolucion Devolucion @relation(fields: [id_devolucion], references: [id_devolucion])
+  producto   Producto   @relation(fields: [id_producto], references: [id_producto])
+
+  @@map("devolucion_detalle")
+}
+
+model DevolucionEvidencia {
+  id_evidencia   Int      @id @default(autoincrement()) @map("id_evidencia")
+  id_devolucion  Int      @map("id_devolucion")
+  nombre_archivo String   @map("nombre_archivo")
+  ruta_archivo   String   @db.Text @map("ruta_archivo")
+  tipo_archivo   String?  @map("tipo_archivo")
+  fecha_subida   DateTime @default(now()) @map("fecha_subida")
+
+  devolucion Devolucion @relation(fields: [id_devolucion], references: [id_devolucion])
+
+  @@map("devolucion_evidencias")
+}
+
+model DevolucionHistorialEstado {
+  id_historial  Int      @id @default(autoincrement()) @map("id_historial")
+  id_devolucion Int      @map("id_devolucion")
+  estado_anterior String? @map("estado_anterior")
+  estado_nuevo   String   @map("estado_nuevo")
+  id_usuario     Int      @map("id_usuario")
+  fecha_cambio   DateTime @default(now()) @map("fecha_cambio")
+  comentario     String?  @db.Text @map("comentario")
+
+  devolucion Devolucion @relation(fields: [id_devolucion], references: [id_devolucion])
+  usuario    Usuario    @relation(fields: [id_usuario], references: [id_usuario])
+
+  @@map("devolucion_historial_estados")
+}
+
+model CategoriaFinanciera {
+  id_categoria_financiera Int      @id @default(autoincrement()) @map("id_categoria_financiera")
+  nombre_categoria        String   @unique @map("nombre_categoria")
+  tipo_categoria          String   @map("tipo_categoria")
+  descripcion             String?  @db.Text @map("descripcion")
+  fecha_creacion          DateTime @default(now()) @map("fecha_creacion")
+
+  movimientos MovimientoFinanciero[]
+
+  @@map("categorias_financieras")
+}
+
+model MovimientoFinanciero {
+  id_movimiento         Int      @id @default(autoincrement()) @map("id_movimiento")
+  tipo_movimiento       String   @map("tipo_movimiento")
+  id_categoria_financiera Int?   @map("id_categoria_financiera")
+  razon                 String   @map("razon")
+  monto                 Decimal  @map("monto") @db.Decimal(12,2)
+  fecha_movimiento      DateTime @map("fecha_movimiento")
+  numero_comprobante    String?  @map("numero_comprobante")
+  numero_operacion_bancaria String? @map("numero_operacion_bancaria")
+  descripcion           String?  @db.Text @map("descripcion")
+  id_usuario_registro   Int      @map("id_usuario_registro")
+  estado_computo        String   @default("computado") @map("estado_computo")
+  fecha_registro        DateTime @default(now()) @map("fecha_registro")
+  fecha_ultima_actualizacion DateTime @default(now()) @map("fecha_ultima_actualizacion")
+
+  categoria CategoriaFinanciera? @relation(fields: [id_categoria_financiera], references: [id_categoria_financiera])
+  usuario   Usuario               @relation("MovimientoRegistrador", fields: [id_usuario_registro], references: [id_usuario])
+  comprobantes MovimientoComprobante[]
+  movimientoPedidos MovimientoPedido[]
+  comisiones ComisionVendedor[] @relation("ComisionMovimiento", fields: [], references: [])
+
+  @@map("movimientos_financieros")
+}
+
+model MovimientoComprobante {
+  id_comprobante  Int      @id @default(autoincrement()) @map("id_comprobante")
+  id_movimiento   Int      @map("id_movimiento")
+  nombre_archivo  String   @map("nombre_archivo")
+  ruta_archivo    String   @db.Text @map("ruta_archivo")
+  fecha_subida    DateTime @default(now()) @map("fecha_subida")
+
+  movimiento MovimientoFinanciero @relation(fields: [id_movimiento], references: [id_movimiento])
+
+  @@map("movimiento_comprobantes")
+}
+
+model MovimientoPedido {
+  id_vinculo    Int      @id @default(autoincrement()) @map("id_vinculo")
+  id_movimiento Int      @map("id_movimiento")
+  id_pedido     Int      @map("id_pedido")
+  fecha_vinculacion DateTime @default(now()) @map("fecha_vinculacion")
+
+  movimiento MovimientoFinanciero @relation(fields: [id_movimiento], references: [id_movimiento])
+  pedido     Pedido              @relation(fields: [id_pedido], references: [id_pedido])
+
+  @@map("movimiento_pedidos")
+}
+
+model ComisionVendedor {
+  id_comision        Int      @id @default(autoincrement()) @map("id_comision")
+  id_vendedor        Int      @map("id_vendedor")
+  periodo_inicio     DateTime @map("periodo_inicio")
+  periodo_fin        DateTime @map("periodo_fin")
+  monto_comision_calculado Decimal @map("monto_comision_calculado") @db.Decimal(12,2)
+  monto_comision_pagado   Decimal @default(0.00) @map("monto_comision_pagado") @db.Decimal(12,2)
+  estado_pago        String   @default("pendiente") @map("estado_pago")
+  id_movimiento_pago Int?     @map("id_movimiento_pago")
+  fecha_calculo      DateTime @default(now()) @map("fecha_calculo")
+  fecha_pago         DateTime? @map("fecha_pago")
+
+  vendedor  Usuario              @relation(fields: [id_vendedor], references: [id_usuario])
+  movimientoPago MovimientoFinanciero? @relation("ComisionMovimiento", fields: [id_movimiento_pago], references: [id_movimiento])
+
+  @@map("comisiones_vendedores")
+}
+
+model ConfiguracionNotificacion {
+  id_configuracion    Int      @id @default(autoincrement()) @map("id_configuracion")
+  clave_configuracion String   @unique @map("clave_configuracion")
+  valor_configuracion String   @map("valor_configuracion")
+  descripcion         String?  @db.Text @map("descripcion")
+  fecha_actualizacion DateTime @default(now()) @map("fecha_actualizacion")
+
+  @@map("configuracion_notificaciones")
+}
+
+model Notificacion {
+  id_notificacion   Int      @id @default(autoincrement()) @map("id_notificacion")
+  tipo_notificacion String   @map("tipo_notificacion")
+  detalle           String   @db.Text @map("detalle")
+  fecha_generacion  DateTime @default(now()) @map("fecha_generacion")
+  enviada           Boolean  @default(false) @map("enviada")
+  fecha_envio       DateTime? @map("fecha_envio")
+
+  usuarios  NotificacionUsuario[]
+
+  @@map("notificaciones")
+}
+
+model NotificacionUsuario {
+  id_notificacion_usuario Int      @id @default(autoincrement()) @map("id_notificacion_usuario")
+  id_notificacion         Int      @map("id_notificacion")
+  id_usuario              Int      @map("id_usuario")
+  leida                   Boolean  @default(false) @map("leida")
+  fecha_lectura           DateTime? @map("fecha_lectura")
+
+  notificacion Notificacion @relation(fields: [id_notificacion], references: [id_notificacion])
+  usuario      Usuario      @relation(fields: [id_usuario], references: [id_usuario])
+
+  @@unique([id_notificacion, id_usuario])
+  @@map("notificacion_usuarios")
+}
